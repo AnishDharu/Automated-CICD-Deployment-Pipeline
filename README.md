@@ -25,10 +25,10 @@ A Flask REST API with a fully automated CI/CD pipeline built using GitHub Action
 
 ## CI/CD Pipeline
 
-Every push to `main` triggers a 5-stage pipeline:
+Every push to `main` triggers a 4-stage pipeline:
 
 ```
-TEST → BUILD → SCAN → PUSH → DEPLOY
+TEST → BUILD → SCAN → PUSH
 ```
 
 | Stage | Tool | Action | Fails if |
@@ -37,16 +37,17 @@ TEST → BUILD → SCAN → PUSH → DEPLOY
 | Build | Docker | Build image tagged with commit SHA | Dockerfile error |
 | Scan | Trivy | Scan image for vulnerabilities | CRITICAL CVE found |
 | Push | Docker Hub | Push SHA-tagged + latest image | Auth failure |
-| Deploy | SSH into EC2 | Pull new image, `docker compose up -d` | EC2 unreachable |
+
+> **Deploy stage** is included in the workflow (commented out) and ready to activate with any SSH-accessible server (AWS EC2, GCP, DigitalOcean, etc.)
 
 ### Pipeline Diagram
 
 ```
-┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
-│  TEST   │────▶│  BUILD  │────▶│  SCAN   │────▶│  PUSH   │────▶│ DEPLOY  │
-│ pytest  │     │ docker  │     │  trivy  │     │ docker  │     │  ssh    │
-│ postgres│     │  build  │     │  scan   │     │  push   │     │ ec2     │
-└─────────┘     └─────────┘     └─────────┘     └─────────┘     └─────────┘
+┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
+│  TEST   │────▶│  BUILD  │────▶│  SCAN   │────▶│  PUSH   │
+│ pytest  │     │ docker  │     │  trivy  │     │ docker  │
+│ postgres│     │  build  │     │  scan   │     │  push   │
+└─────────┘     └─────────┘     └─────────┘     └─────────┘
      ❌              ❌              ❌
   <70% cov      build fail     CRITICAL vuln
   = stop         = stop          = stop
@@ -76,14 +77,13 @@ TEST → BUILD → SCAN → PUSH → DEPLOY
 ### Prerequisites
 - GitHub account
 - Docker Hub account + access token
-- AWS account with an EC2 instance (Ubuntu, t2.micro)
 
 ### 1. Clone and push to GitHub
 ```bash
 git init
 git add .
 git commit -m "Initial commit"
-git remote add origin https://github.com/YOUR_USER/tasks-api.git
+git remote add origin https://github.com/YOUR_USER/Automated-CICD-Deployment-Pipeline.git
 git push -u origin main
 ```
 
@@ -94,34 +94,30 @@ Go to **Settings → Secrets and variables → Actions** and add:
 |--------|-------------|
 | `DOCKERHUB_USER` | Docker Hub username |
 | `DOCKERHUB_TOKEN` | Docker Hub access token |
-| `EC2_HOST` | EC2 public IP address |
-| `EC2_SSH_KEY` | Contents of `.pem` private key |
-| `DB_PASSWORD` | PostgreSQL password |
 
-### 3. Set up EC2
-```bash
-ssh -i your-key.pem ubuntu@YOUR_EC2_IP
-chmod +x ec2-setup.sh && ./ec2-setup.sh
-nano ~/tasks-api/.env   # set real values
-```
-
-### 4. Trigger the pipeline
+### 3. Trigger the pipeline
 ```bash
 git push origin main
 # Watch at: GitHub → Actions tab
 ```
 
-### 5. Verify
-```bash
-curl http://YOUR_EC2_IP/health
-# → {"status": "ok"}
-```
+### 4. Verify
+Go to **Docker Hub → Repositories** — you should see your `tasks-api` image with the commit SHA tag.
+
+## Enabling Deployment (Optional)
+
+To deploy to a live server (AWS EC2, GCP, DigitalOcean, etc.):
+
+1. Set up an Ubuntu server with Docker installed (use `ec2-setup.sh`)
+2. Uncomment the deploy stage in `.github/workflows/ci.yml`
+3. Add these GitHub Secrets: `EC2_HOST`, `EC2_SSH_KEY`, `DB_PASSWORD`
+4. Push to main — the image will be pulled and started on your server
 
 ## Rollback
 
-To revert to a previous version on EC2:
+To revert to a previous version on the server:
 ```bash
-ssh -i your-key.pem ubuntu@YOUR_EC2_IP
+ssh -i your-key.pem ubuntu@YOUR_SERVER_IP
 ./rollback.sh <commit-sha>
 ```
 
