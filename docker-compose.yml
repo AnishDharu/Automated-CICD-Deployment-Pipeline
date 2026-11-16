@@ -1,0 +1,17 @@
+services:
+  api:
+    image: ${DOCKERHUB_USER}/tasks-api:${TAG:-latest}
+    ports: ["80:5000"]
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/tasks
+    depends_on: [db]
+    restart: always
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: tasks
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: always
+volumes:
+  pgdata:
