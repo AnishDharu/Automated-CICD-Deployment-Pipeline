@@ -57,3 +57,25 @@ class TestCreateTask:
         resp = client.post("/tasks", json={"title": ""})
         assert resp.status_code == 400
 
+
+# ── PUT /tasks/<id> ──────────────────────────────────────────────
+class TestUpdateTask:
+    def test_update_task_done_to_true(self, client):
+        """Can update an existing task to done=True."""
+        create_resp = client.post("/tasks", json={"title": "Test task"})
+        task_id = create_resp.get_json()["id"]
+
+        update_resp = client.put(f"/tasks/{task_id}", json={"done": True})
+        assert update_resp.status_code == 200
+        assert update_resp.get_json()["done"] is True
+
+    def test_update_nonexistent_task_returns_404(self, client):
+        """Updating an ID that doesn't exist returns 404."""
+        resp = client.put("/tasks/9999", json={"done": True})
+        assert resp.status_code == 404
+
+    def test_update_missing_done_returns_400(self, client):
+        """Updating without boolean 'done' returns 400."""
+        resp = client.put("/tasks/1", json={"invalid": "field"})
+        assert resp.status_code == 400
+

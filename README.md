@@ -22,6 +22,7 @@ A Flask REST API with a fully automated CI/CD pipeline built using GitHub Action
 | GET | `/health` | Health check — returns `{"status": "ok"}` |
 | GET | `/tasks` | List all tasks |
 | POST | `/tasks` | Create a task — body: `{"title": "..."}` |
+| PUT | `/tasks/<id>` | Update status — body: `{"done": true}` |
 
 ## CI/CD Pipeline
 
