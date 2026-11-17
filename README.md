@@ -13,7 +13,7 @@ A Flask REST API with a fully automated CI/CD pipeline built using GitHub Action
 | CI/CD | GitHub Actions |
 | Security | Trivy vulnerability scanner |
 | Registry | Docker Hub |
-| Deployment | AWS EC2 (Ubuntu) |
+| Deployment | Render (PaaS) |
 
 ## API Endpoints
 
@@ -25,10 +25,10 @@ A Flask REST API with a fully automated CI/CD pipeline built using GitHub Action
 
 ## CI/CD Pipeline
 
-Every push to `main` triggers a 4-stage pipeline:
+Every push to `main` triggers a 5-stage pipeline:
 
 ```
-TEST → BUILD → SCAN → PUSH
+TEST → BUILD → SCAN → PUSH → DEPLOY
 ```
 
 | Stage | Tool | Action | Fails if |
@@ -37,17 +37,16 @@ TEST → BUILD → SCAN → PUSH
 | Build | Docker | Build image tagged with commit SHA | Dockerfile error |
 | Scan | Trivy | Scan image for vulnerabilities | CRITICAL CVE found |
 | Push | Docker Hub | Push SHA-tagged + latest image | Auth failure |
-
-> **Deploy stage** is included in the workflow (commented out) and ready to activate with any SSH-accessible server (AWS EC2, GCP, DigitalOcean, etc.)
+| Deploy | Render deploy hook | Trigger redeploy from GitHub repo | Render unreachable |
 
 ### Pipeline Diagram
 
 ```
-┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
-│  TEST   │────▶│  BUILD  │────▶│  SCAN   │────▶│  PUSH   │
-│ pytest  │     │ docker  │     │  trivy  │     │ docker  │
-│ postgres│     │  build  │     │  scan   │     │  push   │
-└─────────┘     └─────────┘     └─────────┘     └─────────┘
+┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
+│  TEST   │────▶│  BUILD  │────▶│  SCAN   │────▶│  PUSH   │────▶│ DEPLOY  │
+│ pytest  │     │ docker  │     │  trivy  │     │ docker  │     │  curl   │
+│ postgres│     │  build  │     │  scan   │     │  push   │     │ render  │
+└─────────┘     └─────────┘     └─────────┘     └─────────┘     └─────────┘
      ❌              ❌              ❌
   <70% cov      build fail     CRITICAL vuln
   = stop         = stop          = stop
@@ -77,6 +76,7 @@ TEST → BUILD → SCAN → PUSH
 ### Prerequisites
 - GitHub account
 - Docker Hub account + access token
+- Render account (free — [render.com](https://render.com))
 
 ### 1. Clone and push to GitHub
 ```bash
@@ -87,41 +87,33 @@ git remote add origin https://github.com/YOUR_USER/Automated-CICD-Deployment-Pip
 git push -u origin main
 ```
 
-### 2. Add GitHub Secrets
+### 2. Set up Render
+1. Create a **PostgreSQL** database (free tier)
+2. Create a **Web Service** from this GitHub repo (Docker runtime)
+3. Set `DATABASE_URL` environment variable (Internal Database URL)
+4. Turn **Auto-Deploy OFF**
+5. Copy the **Deploy Hook URL** from Settings
+
+### 3. Add GitHub Secrets
 Go to **Settings → Secrets and variables → Actions** and add:
 
 | Secret | Description |
 |--------|-------------|
 | `DOCKERHUB_USER` | Docker Hub username |
 | `DOCKERHUB_TOKEN` | Docker Hub access token |
+| `RENDER_DEPLOY_HOOK` | Render deploy hook URL |
 
-### 3. Trigger the pipeline
+### 4. Trigger the pipeline
 ```bash
 git push origin main
 # Watch at: GitHub → Actions tab
 ```
 
-### 4. Verify
-Go to **Docker Hub → Repositories** — you should see your `tasks-api` image with the commit SHA tag.
-
-## Enabling Deployment (Optional)
-
-To deploy to a live server (AWS EC2, GCP, DigitalOcean, etc.):
-
-1. Set up an Ubuntu server with Docker installed (use `ec2-setup.sh`)
-2. Uncomment the deploy stage in `.github/workflows/ci.yml`
-3. Add these GitHub Secrets: `EC2_HOST`, `EC2_SSH_KEY`, `DB_PASSWORD`
-4. Push to main — the image will be pulled and started on your server
-
-## Rollback
-
-To revert to a previous version on the server:
+### 5. Verify
 ```bash
-ssh -i your-key.pem ubuntu@YOUR_SERVER_IP
-./rollback.sh <commit-sha>
+curl https://tasks-api-xxxx.onrender.com/health
+# → {"status": "ok"}
 ```
-
-Find old SHAs in the GitHub Actions tab or with `git log --oneline`.
 
 ## Author
 
